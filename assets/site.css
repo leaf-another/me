@@ -1,0 +1,55 @@
+
+:root{
+--prose-font: 0.8rem; /* base body size (전체 기본 크기) */
+--prose-lh: 1.6rem; /* base line-height (자동 줄바꿈 간격) */
+--h1-scale: 1.5rem;
+--h2-scale: 1.0rem;
+--h3-scale: 0.9rem;
+--para-gap: 0.9rem; /* 단락 사이 여백 (p + p) */
+--br-gap: 0.35rem; /* 내가 친 줄바꿈(<br>)의 간격 */
+}
+
+
+@media (min-width: 640px){
+:root{
+--prose-font: 0.88rem;
+--h1-scale: 1.55;
+--h2-scale: 1.28;
+}
+}
+
+/* 1) 본문 기본 — 한국어 가독성 보정 */
+.prose{
+font-size: var(--prose-font);
+line-height: var(--prose-lh);
+word-break: keep-all;    /* 한국어 단어 단위 줄바꿈 */
+text-wrap: pretty;    /* 대충 끊기지 않게(지원 브라우저에서) */
+}
+/* Tailwind Typography가 p/li에 따로 크기를 줄 수 있으니 상속 고정 */
+.prose p, .prose li{ font-size: inherit; }
+
+
+/* 2) 제목 스케일(본문 대비 배수) */
+.prose h1{ font-size: calc(var(--prose-font) * var(--h1-scale)); line-height: 1.35; margin: 0; }
+.prose h2{ font-size: calc(var(--prose-font) * var(--h2-scale)); line-height: 1.40; margin: 0; }
+.prose h3{ font-size: calc(var(--prose-font) * var(--h3-scale)); line-height: 1.40; margin: 0; }
+
+
+/* 3) 단락/줄바꿈 간격 분리 */
+.prose p{ margin: 0; }
+.prose p + p{ margin-top: var(--para-gap); }
+/* 내가 친 줄바꿈(<br>)은 자동 줄바꿈과 다른 간격 */
+.prose br{ display:block; margin-top: var(--br-gap); }
+.prose br + br{ margin-top: calc(var(--br-gap) * 2); }
+
+
+/* 4) 리스트/이미지/구분선/링크 */
+.prose ul, .prose ol{ margin: 0; padding-left: 1.2em; }
+.prose li + li{ margin-top: 0.25rem; }
+.prose p + ul, .prose p + ol, .prose ul + p, .prose ol + p{ margin-top: 0.75rem; }
+
+
+.prose img{ display:block; max-width:100%; height:auto; display: block; border-radius:0.375rem; margin: 1rem auto; }
+.prose hr{ border: 0; border-top: 1px solid rgba(125,125,125,.25); margin: 1.25rem 0; }
+.prose a{ text-decoration: underline; text-underline-offset: 3px; }
+

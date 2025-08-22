@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title id="siteTitle">숨</title>
+  
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://leaf-another.github.io/me/">
+  <meta property="og:title" content="숨">
+  <meta property="og:description" content="中隱">
+  <meta property="og:site_name" content="숨">
+  
+  <!-- Pre-paint: honor system preference (no toggle UI) -->
+  <script>
+    (function(){
+      try {
+        var saved = localStorage.getItem('theme'); // may be null
+        var prefers = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        var mode = saved || prefers;
+        if (mode === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      } catch(e) {}
+    })();
+  </script>
+  <!-- Tailwind (class-based dark mode still supported if system is dark) -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = { darkMode: 'class' };
+  </script>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700&display=swap" rel="stylesheet">
+  <style>
+    .measure{max-width:68ch}
+    .font-brand{font-family:'Nanum Myeongjo', ui-serif, Georgia, Cambria, 'Times New Roman', serif;}
+  </style>
+
+  <link rel="stylesheet" href="./assets/site.css?v=1">
+</head>
+<body class="bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+  <header class="border-b border-neutral-200 dark:border-neutral-800">
+    <div class="mx-auto px-4 py-6 max-w-5xl">
+      <div class="flex items-start md:items-center justify-between gap-6">
+        <div class="min-w-0">
+          <a id="brand" href="./" class="font-brand text-2xl leading-tight block">숨</a>
+          <p id="siteDesc" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-6"></p>
+        </div>
+        <nav id="topnav" class="hidden md:flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-neutral-700 dark:text-neutral-300"></nav>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="menuBtn" class="md:hidden text-xs px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 rounded-lg">메뉴</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="drawer" class="fixed inset-0 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm hidden">
+    <div class="mx-auto px-4 py-8 max-w-5xl">
+      <div class="flex items-center justify-between">
+        <span class="font-brand text-lg">메뉴</span>
+        <button id="closeBtn" class="text-sm px-3 py-1 border border-neutral-300 dark:border-neutral-700 rounded-lg">닫기</button>
+      </div>
+      <ul id="drawernav" class="mt-6 grid grid-cols-2 gap-3 text-lg"></ul>
+    </div>
+  </div>
+
+  <main class="mx-auto px-4 py-10 max-w-5xl">
+    <!-- 4) Router-controlled sections -->
+    <section id="section-list" class="measure mx-auto">
+      <div class="mb-6 flex flex-col gap-3">
+        <input id="search" type="search" placeholder="검색(제목/요약/태그)" class="w-full border border-neutral-300 dark:border-neutral-700 bg-white/70 dark:bg-neutral-900/70 rounded-lg px-3 py-2 text-sm">
+        <div id="tagBar" class="flex flex-wrap gap-2"></div>
+      </div>
+      <section id="list" class="divide-y divide-neutral-200 dark:divide-neutral-800"></section>
+    </section>
+
+    <section id="section-about" class="measure mx-auto hidden">
+      <hr class="border-neutral-200 dark:border-neutral-800">
+      <h2 class="mt-8 font-serif text-xl">about</h2>
+      <p id="aboutText" class="mt-3 text-[0.95rem] leading-7 text-neutral-800 dark:text-neutral-200">조용히 글을 모읍니다.</p>
+      <p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">연락: <a id="aboutEmail" href="#" class="underline">ovo_bbo@naver.com</a></p>
+    </section>
+
+    <section id="section-archive" class="measure mx-auto hidden">
+      <hr class="border-neutral-200 dark:border-neutral-800">
+      <h2 class="mt-8 font-serif text-xl">archive</h2>
+      <div id="archiveList" class="mt-4"></div>
+    </section>
+  </main>
+
+  <footer class="mx-auto px-4 py-12 measure text-xs text-neutral-500 dark:text-neutral-400">
+    <p>© <span id="year"></span> <span id="footTitle">숨</span></p>
+  </footer>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const $$ = (s)=>Array.from(document.querySelectorAll(s));
+    const state = { posts: [], category: "", site: null, activeTags: new Set() };
+
+    function fmtDate(d){ try{const dt=new Date(d); return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}catch(e){return d;} }
+    function ym(d){ try{const dt=new Date(d); return [dt.getFullYear(), String(dt.getMonth()+1).padStart(2,'0')].join('-'); }catch(e){ return d; } }
+    function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s])); }
+
+    function show(id){ $('#section-list').classList.add('hidden'); $('#section-about').classList.add('hidden'); $('#section-archive').classList.add('hidden'); $(id).classList.remove('hidden'); }
+    function route(){
+      const hash = (location.hash || '').slice(1);                      // 'about' | 'archive' | ''
+      const page = new URLSearchParams(location.search).get('page');    // 동일 용도 (about/archive)
+      const tab  = page || hash || '';
+      
+      const listSec    = document.getElementById('section-list');
+      const aboutSec   = document.getElementById('section-about');
+      const archiveSec = document.getElementById('section-archive');
+
+      // 숨기고
+      [listSec, aboutSec, archiveSec].forEach(el => el.classList.add('hidden'));
+      // 필요한 섹션만 보이기
+      if (tab === 'about')      aboutSec.classList.remove('hidden');
+      else if (tab === 'archive') archiveSec.classList.remove('hidden');
+      else                      listSec.classList.remove('hidden');
+    }
+
+    async function load(){
+      const site = await (await fetch('./site.json')).json(); state.site = site;
+      document.title = site.title; $('#siteTitle').textContent = site.title; $('#brand').textContent = site.title; $('#footTitle').textContent = site.title;
+      $('#siteDesc').textContent = site.description || '';
+
+      // nav build
+      const nav=$('#topnav'); nav.innerHTML=''; const drawer=$('#drawernav'); drawer.innerHTML='';
+      const cats=site.navCategories||[];
+      const makeA=(txt)=>{ const a=document.createElement('a'); a.href='./?cat='+encodeURIComponent(txt); a.dataset.cat=txt; a.textContent=txt; return a; };
+      cats.forEach(c=>{ const a=makeA(c); nav.appendChild(a); const li=document.createElement('li'); const a2=makeA(c); li.appendChild(a2); drawer.appendChild(li); });
+      const allA=document.createElement('a'); allA.href='./'; allA.dataset.cat=''; allA.textContent='전체'; nav.prepend(allA);
+      nav.appendChild(Object.assign(document.createElement('a'),{href:'./?page=about',textContent:'about'}));
+      nav.appendChild(Object.assign(document.createElement('a'),{href:'./?page=archive',textContent:'archive'}));
+
+      // posts
+      const v = state.site?.assetVersion ? ('?v=' + state.site.assetVersion) : ('?v=' + Date.now());
+      const posts = await (await fetch('./posts/posts.json' + v)).json();
+      posts.sort((a,b)=> new Date(b.date)-new Date(a.date));
+      state.posts = posts;
+
+      // apply ?cat filter if present
+      const params=new URLSearchParams(location.search); const cat=params.get('cat'); if(cat){ state.category=cat; }
+
+      buildTagBar(); renderList(); renderArchive(); route();
+    }
+
+    function buildTagBar(){
+      const set = new Set(); state.posts.forEach(p => (p.tags||[]).forEach(t=>set.add(t)));
+      const bar=$('#tagBar'); if(!bar) return; bar.innerHTML='';
+      Array.from(set).sort((a,b)=>a.localeCompare(b)).forEach(tag=>{
+        const active = state.activeTags.has(tag);
+        const btn=document.createElement('button');
+        btn.className='px-3 py-1 text-xs rounded-full border '+(active?'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black border-neutral-900 dark:border-neutral-100':'border-neutral-300 dark:border-neutral-700');
+        btn.textContent='#'+tag;
+        btn.addEventListener('click', ()=>{ if(state.activeTags.has(tag)) state.activeTags.delete(tag); else state.activeTags.add(tag); renderList(); buildTagBar(); });
+        bar.appendChild(btn);
+      });
+    }
+
+    function renderList(){
+      const q = ($('#search')? $('#search').value : ''||'').toLowerCase().trim();
+      const list=$('#list');
+      const posts=state.posts.filter(p=>{
+        const inCat = state.category ? (p.category===state.category) : true;
+        const blob=[p.title,p.summary,(p.tags||[]).join(' '),p.category||''].join(' ').toLowerCase();
+        const inText = blob.includes(q);
+        const inTags = state.activeTags.size ? (p.tags||[]).some(t=> state.activeTags.has(t)) : true;
+        return inCat && inText && inTags;
+      });
+      list.innerHTML = posts.map(p => `
+        <article class="py-6">
+          <h2 class="font-serif text-xl"><a href="./post.html?slug=${encodeURIComponent(p.slug)}" class="underline underline-offset-4 decoration-neutral-300 hover:decoration-neutral-900 dark:decoration-neutral-700 dark:hover:decoration-neutral-200">${escapeHtml(p.title)}</a></h2>
+          <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">${fmtDate(p.date)}${p.category ? ' · '+escapeHtml(p.category): ''}</div>
+          ${p.summary ? `<p class="mt-3 text-[0.9rem] leading-6 text-neutral-800 dark:text-neutral-200">${escapeHtml(p.summary)}</p>` : ''}
+          ${(p.tags||[]).length ? `<div class="mt-3 flex flex-wrap gap-2">${(p.tags||[]).map(t=>`<a href="./?tag=${encodeURIComponent(t)}" class="text-[11px] px-2 py-1 rounded-full border border-neutral-300 dark:border-neutral-700">#${escapeHtml(t)}</a>`).join('')}</div>` : ''}
+        </article>
+      `).join('');
+    }
+
+    function renderArchive(){
+      const wrap=$('#archiveList'); if(!wrap) return;
+      const group = {}; state.posts.forEach(p=>{ const key=ym(p.date); group[key]=group[key]||[]; group[key].push(p); });
+      const keys=Object.keys(group).sort().reverse();
+      wrap.innerHTML = keys.map(k => `
+        <section class="mt-6">
+          <h3 class="font-serif text-lg">${k}</h3>
+          <ul class="mt-2 space-y-2">
+            ${group[k].map(p => `<li><a class="underline underline-offset-4 decoration-neutral-300 hover:decoration-neutral-900 dark:decoration-neutral-700 dark:hover:decoration-neutral-200" href="./post.html?slug=${encodeURIComponent(p.slug)}">${escapeHtml(p.title)}</a> <span class="text-xs text-neutral-500 dark:text-neutral-400">(${p.date}${p.category? ' · '+escapeHtml(p.category): ''})</span></li>`).join('')}
+          </ul>
+        </section>
+      `).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      $('#menuBtn').addEventListener('click', ()=> $('#drawer').classList.remove('hidden'));
+      $('#closeBtn').addEventListener('click', ()=> $('#drawer').classList.add('hidden'));
+      if($('#search')) $('#search').addEventListener('input', renderList);
+      $('#year').textContent = new Date().getFullYear();
+      window.addEventListener('hashchange', route);
+      window.addEventListener('popstate', route);
+      window.addEventListener('pageshow', route);
+      load();
+      route();
+    });
+  </script>
+</body>
+</html>

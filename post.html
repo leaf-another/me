@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>글</title>
+  
+  <!-- Pre-paint: honor system preference (no toggle UI) -->
+  <script>
+    (function(){
+      try {
+        var saved = localStorage.getItem('theme'); // may be null
+        var prefers = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        var mode = saved || prefers;
+        if (mode === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      } catch(e) {}
+    })();
+  </script>
+  <!-- Tailwind (class-based dark mode still supported if system is dark) -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = { darkMode: 'class' };
+  </script>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700&display=swap" rel="stylesheet">
+  <style>
+    .measure{max-width:68ch}
+    .font-brand{font-family:'Nanum Myeongjo', ui-serif, Georgia, Cambria, 'Times New Roman', serif;}
+  </style>
+
+  <link rel="stylesheet" href="./assets/site.css">
+</head>
+<body class="bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+  <header class="border-b border-neutral-200 dark:border-neutral-800">
+    <div class="mx-auto px-4 py-6 max-w-5xl">
+      <div class="flex items-start md:items-center justify-between gap-6">
+        <div class="min-w-0">
+          <a id="brand" href="./" class="font-brand text-2xl leading-tight block">숨</a>
+          <p id="siteDesc" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-6"></p>
+        </div>
+        <!-- 3) Dynamic categories + about/archive -->
+        <nav id="topnav" class="hidden md:flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-neutral-700 dark:text-neutral-300"></nav>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="text-sm space-x-4 md:hidden">
+            <a href="./?page=about"   class="underline underline-offset-4">about</a>
+            <a href="./?page=archive" class="underline underline-offset-4">archive</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="mx-auto px-4 py-10 measure">
+    <article>
+      <h1 id="title" class="font-serif text-2xl leading-tight"></h1>
+      <div id="meta" class="mt-1 text-xs text-neutral-500 dark:text-neutral-400"></div>
+      <div id="tags" class="mt-2 flex flex-wrap gap-2"></div>
+      <div id="content" class="prose prose-neutral dark:prose-invert mt-6"></div>
+    </article>
+    <nav class="mt-10 text-sm flex justify-between">
+      <a id="prev" href="#" class="underline decoration-neutral-300 underline-offset-4 hover:decoration-neutral-900 dark:decoration-neutral-700 dark:hover:decoration-neutral-200"></a>
+      <a id="next" href="#" class="underline decoration-neutral-300 underline-offset-4 hover:decoration-neutral-900 dark:decoration-neutral-700 dark:hover:decoration-neutral-200"></a>
+    </nav>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
+  <script>
+    let site=null;
+    const $=(s)=>document.querySelector(s);
+
+    async function loadSite(){
+      site = await (await fetch('./site.json')).json();
+      $('#brand').textContent = site.title;
+      $('#siteDesc').textContent = site.description || '';
+
+      // Build categories in topbar
+      const nav=document.getElementById('topnav'); nav.innerHTML='';
+      const cats=site.navCategories||[];
+      const makeA=(txt)=>{ const a=document.createElement('a'); a.href='./?cat='+encodeURIComponent(txt); a.textContent=txt; a.dataset.cat=txt; return a; };
+      cats.forEach(c=> nav.appendChild(makeA(c)));
+      nav.appendChild(Object.assign(document.createElement('a'),{href:'./?page=about',  textContent:'about'}));
+      nav.appendChild(Object.assign(document.createElement('a'),{href:'./?page=archive',textContent:'archive'}));
+    }
+
+    const params=new URLSearchParams(location.search);
+    const slug=params.get('slug'); if(!slug) location.href='./';
+    function fmtDate(d){ try{ const dt=new Date(d); return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }catch(e){ return d; } }
+    function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s])); }
+
+    async function load(){ 
+      await loadSite();
+      const v = site?.assetVersion ? ('?v=' + site.assetVersion) : ('?v=' + Date.now());
+      const posts = await (await fetch('./posts/posts.json' + v)).json();
+      const idx = posts.findIndex(p => p.slug === slug);
+      const post = posts[idx];
+      if(!post){ document.getElementById('title').textContent='글을 찾을 수 없습니다'; return; }
+      document.title = post.title + ' | ' + site.title;
+      document.getElementById('title').textContent = post.title;
+      document.getElementById('meta').textContent = fmtDate(post.date) + (post.category ? ' · ' + post.category : '');
+      (post.tags||[]).forEach(t => { const a=document.createElement('a'); a.href='./?tag='+encodeURIComponent(t); a.className='text-[11px] px-2 py-1 rounded-full border border-neutral-300 dark:border-neutral-700'; a.textContent='#'+t; document.getElementById('tags').appendChild(a); });
+
+     let md = await (await fetch('./posts/'+post.slug+'.md' + v)).text();
+      md = md.replace(/\r\n?/g, '\n');
+      md = md.split(/(```[\s\S]*?```)/g).map((chunk, i) =>
+        i % 2
+        ? chunk
+        : chunk.replace(/\n{2,}/g, m => '\n\n' + '[[BR]]\n'.repeat(m.length - 1))
+        ).join('');
+      
+      const conv = new showdown.Converter({
+        tables: true,
+        ghCodeBlocks: true,
+        simpleLineBreaks: true
+        });
+      let html = conv.makeHtml(md);
+      html = html.replace(/\[\[BR\]\]/g, '<br>');
+      
+      document.getElementById('content').innerHTML = html;
+
+      const prev = posts[idx+1], next = posts[idx-1];
+      const pv=document.getElementById('prev'), nx=document.getElementById('next');
+      if(prev){ pv.textContent='이전: '+prev.title; pv.href='./post.html?slug='+encodeURIComponent(prev.slug); } else { pv.textContent=''; pv.removeAttribute('href'); }
+      if(next){ nx.textContent='다음: '+next.title; nx.href='./post.html?slug='+encodeURIComponent(next.slug); } else { nx.textContent=''; nx.removeAttribute('href'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', load);
+  </script>
+</body>
+</html>
